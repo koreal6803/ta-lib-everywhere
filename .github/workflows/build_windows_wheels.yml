@@ -39,10 +39,40 @@ jobs:
             TA_LIBRARY_PATH="ta-lib-$TALIB_C_VER\\_build;$LIB"
             TA_INCLUDE_PATH="ta-lib-$TALIB_C_VER\\include;$INCLUDE"
             PIP_NO_BUILD_ISOLATION=false
+      - name: ta-lib-everywhere
+        run: |
+          pip install wheel
+          python << 'EOF'
+          import glob, os, subprocess, shutil
+          wheel_files = glob.glob('wheelhouse/*.whl')
+          for wheel_file in wheel_files:
+              print(f"Processing {wheel_file}...")
+              subprocess.run(['wheel', 'unpack', wheel_file], check=True)
+              base = os.path.splitext(os.path.basename(wheel_file))[0]
+              unpack_dir = base  # 預設解包後目錄名稱為 <name>-<version>
+              dist_info_dirs = [d for d in os.listdir(unpack_dir) if d.endswith('.dist-info')]
+              if not dist_info_dirs:
+                  continue
+              dist_info_dir = os.path.join(unpack_dir, dist_info_dirs[0])
+              metadata_path = os.path.join(dist_info_dir, 'METADATA')
+              with open(metadata_path, 'r', encoding='utf-8') as f:
+                  lines = f.readlines()
+              with open(metadata_path, 'w', encoding='utf-8') as f:
+                  for line in lines:
+                      if line.startswith('Name:'):
+                          f.write('Name: ta-lib-everywhere\n')
+                      else:
+                          f.write(line)
+              subprocess.run(['wheel', 'pack', unpack_dir, '-d', 'wheelhouse'], check=True)
+              shutil.rmtree(unpack_dir)
+              os.remove(wheel_file)
+          EOF
+        shell: bash
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
           name: wheels-win-amd64
+
   build_x86:
     name: Build x86 wheels
     runs-on: ${{ matrix.os }}
@@ -63,6 +93,35 @@ jobs:
             TA_LIBRARY_PATH="ta-lib-$TALIB_C_VER\\_build;$LIB"
             TA_INCLUDE_PATH="ta-lib-$TALIB_C_VER\\include;$INCLUDE"
             PIP_NO_BUILD_ISOLATION=false
+      - name: ta-lib-everywhere
+        run: |
+          pip install wheel
+          python << 'EOF'
+          import glob, os, subprocess, shutil
+          wheel_files = glob.glob('wheelhouse/*.whl')
+          for wheel_file in wheel_files:
+              print(f"Processing {wheel_file}...")
+              subprocess.run(['wheel', 'unpack', wheel_file], check=True)
+              base = os.path.splitext(os.path.basename(wheel_file))[0]
+              unpack_dir = base
+              dist_info_dirs = [d for d in os.listdir(unpack_dir) if d.endswith('.dist-info')]
+              if not dist_info_dirs:
+                  continue
+              dist_info_dir = os.path.join(unpack_dir, dist_info_dirs[0])
+              metadata_path = os.path.join(dist_info_dir, 'METADATA')
+              with open(metadata_path, 'r', encoding='utf-8') as f:
+                  lines = f.readlines()
+              with open(metadata_path, 'w', encoding='utf-8') as f:
+                  for line in lines:
+                      if line.startswith('Name:'):
+                          f.write('Name: ta-lib-everywhere\n')
+                      else:
+                          f.write(line)
+              subprocess.run(['wheel', 'pack', unpack_dir, '-d', 'wheelhouse'], check=True)
+              shutil.rmtree(unpack_dir)
+              os.remove(wheel_file)
+          EOF
+        shell: bash
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl

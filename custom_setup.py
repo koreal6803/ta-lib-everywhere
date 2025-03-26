@@ -134,13 +134,18 @@ class LazyBuildExtCommandClass(dict):
 
 cmdclass = LazyBuildExtCommandClass()
 
+# if in macos we need ta-lib, and if in ubuntu we need ta_lib if in windows we need ta-lib-static
+library_name = 'ta-lib' if sys.platform == 'darwin' \
+    else 'ta_lib' if sys.platform == 'linux' \
+    else 'ta-lib-static'
+
 ext_modules = [
     Extension(
         'talib._ta_lib',
         ['talib/_ta_lib.pyx' if has_cython else 'talib/_ta_lib.c'],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
-        libraries=['ta_lib'],
+        libraries=[library_name],
         runtime_library_dirs=[] if sys.platform == 'win32' else library_dirs)
 ]
 

@@ -27,10 +27,11 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    # --- 安裝 TA-Lib C 庫 (Ubuntu: 透過 apt-get 安裝) ---
+    # --- 安裝 TA-Lib C 庫 ---
     - name: Install TA-Lib C Library (Linux via apt-get)
       if: runner.os == 'Linux'
       run: |
+        sudo add-apt-repository -y ppa:lionheart/ta-lib
         sudo apt-get update -qq
         sudo apt-get install -y ta-lib libta-lib0-dev
         echo "TA-Lib C library installed via apt-get."
@@ -58,31 +59,4 @@ jobs:
         git clone https://github.com/ta-lib/ta-lib-python.git
 
     # --- 使用自訂的 setup.py 覆蓋原來的 setup.py ---
-    - name: Override setup.py with custom version
-      run: |
-        cp custom_setup.py ta-lib-python/setup.py
-        echo "Using custom setup.py:"
-        head -n 10 ta-lib-python/setup.py
-
-    # --- 從 clone 下來的程式碼構建 wheel ---
-    - name: Build wheel from cloned repository
-      run: |
-        cd ta-lib-python
-        echo "Building wheel for TA-Lib $TA_LIB_PY_VERSION..."
-        python -m build --wheel . -o ../dist
-        if [ $? -ne 0 ]; then
-          echo "::error::Failed to build wheel from cloned repository."
-          exit 1
-        fi
-        echo "Wheel build completed successfully."
-
-    - name: List built wheel
-      run: ls -l dist
-
-    # --- 上傳生成的 wheel 作為 artifact ---
-    - name: Upload Wheels
-      uses: actions/upload-artifact@v4
-      with:
-        name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_PY_VERSION }}
-        path: dist/*.whl
-        if-no-files-found: error
+    - name: Override

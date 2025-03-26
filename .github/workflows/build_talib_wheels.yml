@@ -11,14 +11,14 @@ env:
 
 jobs:
   build_wheels:
-    # CORRECTED: Removed env context from job name
     name: Build wheel for ${{ matrix.os }} / Py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # MODIFIED: Limit OS and Python versions for testing
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.12'] # Test only with Python 3.12
 
     steps:
     - name: Checkout repository (optional but good practice)
@@ -30,11 +30,22 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     # --- Install C TA-Lib Library (Platform Specific) ---
-    - name: Install TA-Lib (Linux)
+
+    - name: Install TA-Lib (Linux - Build from Source)
       if: runner.os == 'Linux'
       run: |
+        # Install build dependencies
         sudo apt-get update
-        sudo apt-get install -y libta-lib-dev
+        sudo apt-get install -y build-essential wget
+        # Download TA-Lib source
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib/
+        # Build and install TA-Lib C library (installs to /usr by default)
+        ./configure --prefix=/usr
+        make
+        sudo make install
+        cd .. # Go back to the workspace root
 
     - name: Install TA-Lib (macOS)
       if: runner.os == 'macOS'
@@ -45,38 +56,54 @@ jobs:
       shell: pwsh
       run: |
         $url = "http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-msvc.zip"
-        $outputFile = "ta-lib.zip"
-        $extractPath = "C:\" # Extracts to C:\ta-lib
-        Write-Host "Downloading TA-Lib C library..."
+        $outputFile = "${{ github.workspace }}\ta-lib.zip"
+        # Extract to a sub-directory within the workspace
+        $extractPath = "${{ github.workspace }}\ta-lib-c"
+        New-Item -ItemType Directory -Path $extractPath -Force | Out-Null # Ensure directory exists
+
+        Write-Host "Downloading TA-Lib C library to $outputFile..."
         Invoke-WebRequest -Uri $url -OutFile $outputFile
+        Write-Host "Verifying download..."
+        if (-not (Test-Path $outputFile)) { throw "Download failed: $outputFile not found." }
+        if ((Get-Item $outputFile).Length -lt 1MB) { throw "Download failed: File size too small."} # Basic size check
+
         Write-Host "Extracting TA-Lib C library to $extractPath..."
         Expand-Archive -Path $outputFile -DestinationPath $extractPath -Force
-        Write-Host "TA-Lib extracted to C:\ta-lib"
+        Write-Host "TA-Lib extracted to $extractPath\ta-lib" # Note: zip extracts into a 'ta-lib' subfolder
 
     # --- Set Environment Variables for Python Build ---
+
     - name: Set TA-Lib environment variables (macOS)
       if: runner.os == 'macOS'
       run: echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
 
     - name: Set TA-Lib environment variables (Windows)
       if: runner.os == 'Windows'
+      shell: pwsh # Use pwsh to ensure consistency with GITHUB_WORKSPACE expansion
       run: |
-        echo "TA_INCLUDE_PATH=C:\ta-lib\c\include" >> $GITHUB_ENV
-        echo "TA_LIBRARY_PATH=C:\ta-lib\c\lib" >> $GITHUB_ENV
+        # Point to the include/lib directories inside the extracted folder
+        echo "TA_INCLUDE_PATH=${{ github.workspace }}\ta-lib-c\ta-lib\c\include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "TA_LIBRARY_PATH=${{ github.workspace }}\ta-lib-c\ta-lib\c\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "Set TA paths:"
+        echo "  Include: ${{ github.workspace }}\ta-lib-c\ta-lib\c\include"
+        echo "  Library: ${{ github.workspace }}\ta-lib-c\ta-lib\c\lib"
+
+    # --- Install Build Dependencies & NumPy >= 2.0 ---
+    - name: Install Python build dependencies and NumPy
+      # Specify numpy>=2.0
+      run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
 
     # --- Build the Wheel from PyPI Source ---
-    - name: Install build dependencies
-      run: python -m pip install --upgrade pip wheel build
-
     - name: Download TA-Lib sdist from PyPI
-      # This step CAN access the top-level env context
       run: |
         mkdir sdist_dir
         if [ -z "${{ env.TA_LIB_VERSION }}" ]; then
           echo "Downloading latest TA-Lib sdist..."
+          # --no-deps is important here, we installed numpy already
           python -m pip download --no-deps --no-binary :all: TA-Lib -d sdist_dir
         else
           echo "Downloading TA-Lib sdist version ${{ env.TA_LIB_VERSION }}..."
+          # --no-deps is important here, we installed numpy already
           python -m pip download --no-deps --no-binary :all: "TA-Lib==${{ env.TA_LIB_VERSION }}" -d sdist_dir
         fi
 
@@ -84,13 +111,13 @@ jobs:
       run: ls -l sdist_dir
 
     - name: Build wheel from sdist
+      # This will use the already installed NumPy
       run: python -m build --wheel sdist_dir/*.tar.gz -o dist
 
     # --- Upload the Wheel as an Artifact ---
     - name: Upload Wheels
       uses: actions/upload-artifact@v4
       with:
-        # Artifact naming CAN access the top-level env context
         name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_VERSION || 'latest' }}
         path: dist/*.whl
         if-no-files-found: error

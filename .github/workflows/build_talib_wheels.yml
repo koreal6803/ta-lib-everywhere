@@ -47,7 +47,7 @@ jobs:
 
 
       # --- 檢查 /usr/include 下的目錄是否為 ta-lib 或 ta_lib，並確認 header 存在 ---
-        - name: Check for TA-Lib header directory and file
+      - name: Check for TA-Lib header directory and file
         if: runner.os == 'Linux'
         run: |
           echo "Listing /usr/include:"

@@ -140,7 +140,7 @@ ext_modules = [
         ['talib/_ta_lib.pyx' if has_cython else 'talib/_ta_lib.c'],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
-        libraries=['ta-lib'],
+        libraries=['ta_lib'],
         runtime_library_dirs=[] if sys.platform == 'win32' else library_dirs)
 ]
 

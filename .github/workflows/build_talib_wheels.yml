@@ -7,7 +7,11 @@ on:
 
 # Define the TA-Lib version at the top level for easy access in steps
 env:
-  TA_LIB_VERSION: "0.4.28" # Specify the desired version, or leave empty for latest
+  # === USER ACTION: Verify/Change this version ===
+  TA_LIB_VERSION: "0.6.3" # Set to the Python TA-Lib package version you want to build
+  # Define the C library version and URL for Windows
+  TA_LIB_C_VERSION_WINDOWS: "0.6.4"
+  TA_LIB_MSI_URL: "https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-windows-x86_64.msi"
 
 jobs:
   build_wheels:
@@ -16,9 +20,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # MODIFIED: Limit OS and Python versions for testing
+        # Still limited for testing, expand python-version/os later if desired
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.12'] # Test only with Python 3.12
+        python-version: ['3.12']
 
     steps:
     - name: Checkout repository (optional but good practice)
@@ -37,8 +41,9 @@ jobs:
         # Install build dependencies
         sudo apt-get update
         sudo apt-get install -y build-essential wget
-        # Download TA-Lib source
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        # Download TA-Lib source (Using 0.4.0 as that's the common source version)
+        # If building a Python wrapper linked to C v0.6.4 is needed, the source/build might differ.
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib/
         # Build and install TA-Lib C library (installs to /usr by default)
@@ -49,48 +54,60 @@ jobs:
 
     - name: Install TA-Lib (macOS)
       if: runner.os == 'macOS'
-      run: brew install ta-lib
+      run: brew install ta-lib # Brew usually provides a reasonably recent version
 
-    - name: Install TA-Lib (Windows)
+    # MODIFIED: Download and run the official MSI installer for Windows
+    - name: Install TA-Lib C Library (Windows via MSI)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        $url = "http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-msvc.zip"
-        $outputFile = "${{ github.workspace }}\ta-lib.zip"
-        # Extract to a sub-directory within the workspace
-        $extractPath = "${{ github.workspace }}\ta-lib-c"
-        New-Item -ItemType Directory -Path $extractPath -Force | Out-Null # Ensure directory exists
+        $msiUrl = "${{ env.TA_LIB_MSI_URL }}"
+        $outputFile = "${{ github.workspace }}\ta-lib-${{ env.TA_LIB_C_VERSION_WINDOWS }}.msi"
 
-        Write-Host "Downloading TA-Lib C library to $outputFile..."
-        Invoke-WebRequest -Uri $url -OutFile $outputFile
-        Write-Host "Verifying download..."
-        if (-not (Test-Path $outputFile)) { throw "Download failed: $outputFile not found." }
-        if ((Get-Item $outputFile).Length -lt 1MB) { throw "Download failed: File size too small."} # Basic size check
+        Write-Host "Downloading TA-Lib C library MSI from $msiUrl..."
+        try {
+          # Use a reasonable timeout (e.g., 300 seconds = 5 minutes)
+          Invoke-WebRequest -Uri $msiUrl -OutFile $outputFile -TimeoutSec 300 -ErrorAction Stop
+        } catch {
+          throw "Failed to download MSI: $($_.Exception.Message)"
+        }
 
-        Write-Host "Extracting TA-Lib C library to $extractPath..."
-        Expand-Archive -Path $outputFile -DestinationPath $extractPath -Force
-        Write-Host "TA-Lib extracted to $extractPath\ta-lib" # Note: zip extracts into a 'ta-lib' subfolder
+        Write-Host "Verifying downloaded MSI..."
+        if (-not (Test-Path $outputFile)) { throw "MSI download verification failed: $outputFile not found." }
+        # Add a basic size check if desired (e.g., > 1MB)
+        # if ((Get-Item $outputFile).Length -lt 1MB) { throw "MSI download verification failed: File size too small."}
+
+        Write-Host "Running TA-Lib C library MSI installer silently..."
+        # Use msiexec for silent installation
+        # /i installs the product
+        # /qn provides a quiet installation with no UI
+        # /norestart prevents automatic restarts
+        $msiexecArgs = @("/i", "`"$outputFile`"", "/qn", "/norestart", "/L*v", "`"${{ github.workspace }}\ta-lib-install.log`"")
+        Write-Host "Executing: msiexec $($msiexecArgs -join ' ')"
+        Start-Process msiexec -ArgumentList $msiexecArgs -Wait -PassThru
+        # Check exit code (0 usually means success)
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "MSI installation failed with exit code $LASTEXITCODE. Check log: ${{ github.workspace }}\ta-lib-install.log"
+            # Optional: Dump log content on failure
+            # Get-Content "${{ github.workspace }}\ta-lib-install.log" -Tail 50
+            exit $LASTEXITCODE
+        } else {
+            Write-Host "MSI installation completed successfully (Exit Code: $LASTEXITCODE)."
+        }
+        # Optional: Verify expected installation files/directories if needed
 
     # --- Set Environment Variables for Python Build ---
+    # Note: Explicit Windows vars removed as MSI installer should handle registration.
 
     - name: Set TA-Lib environment variables (macOS)
       if: runner.os == 'macOS'
+      # Keep this for macOS brew, might still be needed depending on setup.py robustness
       run: echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
 
-    - name: Set TA-Lib environment variables (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh # Use pwsh to ensure consistency with GITHUB_WORKSPACE expansion
-      run: |
-        # Point to the include/lib directories inside the extracted folder
-        echo "TA_INCLUDE_PATH=${{ github.workspace }}\ta-lib-c\ta-lib\c\include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "TA_LIBRARY_PATH=${{ github.workspace }}\ta-lib-c\ta-lib\c\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "Set TA paths:"
-        echo "  Include: ${{ github.workspace }}\ta-lib-c\ta-lib\c\include"
-        echo "  Library: ${{ github.workspace }}\ta-lib-c\ta-lib\c\lib"
+    # REMOVED: Set TA-Lib environment variables (Windows) - Handled by MSI installer
 
     # --- Install Build Dependencies & NumPy >= 2.0 ---
     - name: Install Python build dependencies and NumPy
-      # Specify numpy>=2.0
       run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
 
     # --- Build the Wheel from PyPI Source ---
@@ -99,11 +116,9 @@ jobs:
         mkdir sdist_dir
         if [ -z "${{ env.TA_LIB_VERSION }}" ]; then
           echo "Downloading latest TA-Lib sdist..."
-          # --no-deps is important here, we installed numpy already
           python -m pip download --no-deps --no-binary :all: TA-Lib -d sdist_dir
         else
           echo "Downloading TA-Lib sdist version ${{ env.TA_LIB_VERSION }}..."
-          # --no-deps is important here, we installed numpy already
           python -m pip download --no-deps --no-binary :all: "TA-Lib==${{ env.TA_LIB_VERSION }}" -d sdist_dir
         fi
 
@@ -111,7 +126,7 @@ jobs:
       run: ls -l sdist_dir
 
     - name: Build wheel from sdist
-      # This will use the already installed NumPy
+      # This will use the pre-installed C library (via build/brew/MSI) and NumPy
       run: python -m build --wheel sdist_dir/*.tar.gz -o dist
 
     # --- Upload the Wheel as an Artifact ---
@@ -121,3 +136,4 @@ jobs:
         name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_VERSION || 'latest' }}
         path: dist/*.whl
         if-no-files-found: error
+

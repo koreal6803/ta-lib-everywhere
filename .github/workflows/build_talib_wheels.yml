@@ -8,10 +8,7 @@ on:
 # Define the TA-Lib version at the top level for easy access in steps
 env:
   # === USER ACTION: Verify/Change this version ===
-  TA_LIB_VERSION: "0.6.3" # Set to the Python TA-Lib package version you want to build
-  # Define the C library version and URL for Windows
-  TA_LIB_C_VERSION_WINDOWS: "0.6.4"
-  TA_LIB_MSI_URL: "https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-windows-x86_64.msi"
+  TA_LIB_PY_VERSION: "0.4.28" # Python TA-Lib package version from PyPI
 
 jobs:
   build_wheels:
@@ -20,9 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Still limited for testing, expand python-version/os later if desired
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.12']
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.12'] # Expand as needed
 
     steps:
     - name: Checkout repository (optional but good practice)
@@ -34,106 +30,84 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     # --- Install C TA-Lib Library (Platform Specific) ---
-
-    - name: Install TA-Lib (Linux - Build from Source)
+    - name: Install TA-Lib C Library (Linux - Build from Source 0.4.0)
       if: runner.os == 'Linux'
       run: |
-        # Install build dependencies
-        sudo apt-get update
-        sudo apt-get install -y build-essential wget
-        # Download TA-Lib source (Using 0.4.0 as that's the common source version)
-        # If building a Python wrapper linked to C v0.6.4 is needed, the source/build might differ.
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O ta-lib-0.4.0-src.tar.gz
+        echo "Installing build tools..."
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq build-essential wget
+        echo "Downloading TA-Lib C library source (0.4.0)..."
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O ta-lib-0.4.0-src.tar.gz -q
+        echo "Extracting source..."
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib/
-        # Build and install TA-Lib C library (installs to /usr by default)
-        ./configure --prefix=/usr
-        make
-        sudo make install
+        echo "Configuring TA-Lib C library..."
+        ./configure --prefix=/usr > configure.log 2>&1 || (cat configure.log && exit 1)
+        echo "Building TA-Lib C library..."
+        make > make.log 2>&1 || (cat make.log && exit 1)
+        echo "Installing TA-Lib C library..."
+        sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
+        echo "TA-Lib C library installation complete."
         cd .. # Go back to the workspace root
 
-    - name: Install TA-Lib (macOS)
+    - name: Install TA-Lib C Library (macOS via Homebrew)
       if: runner.os == 'macOS'
-      run: brew install ta-lib # Brew usually provides a reasonably recent version
-
-    # MODIFIED: Download and run the official MSI installer for Windows
-    - name: Install TA-Lib C Library (Windows via MSI)
-      if: runner.os == 'Windows'
-      shell: pwsh
       run: |
-        $msiUrl = "${{ env.TA_LIB_MSI_URL }}"
-        $outputFile = "${{ github.workspace }}\ta-lib-${{ env.TA_LIB_C_VERSION_WINDOWS }}.msi"
-
-        Write-Host "Downloading TA-Lib C library MSI from $msiUrl..."
-        try {
-          # Use a reasonable timeout (e.g., 300 seconds = 5 minutes)
-          Invoke-WebRequest -Uri $msiUrl -OutFile $outputFile -TimeoutSec 300 -ErrorAction Stop
-        } catch {
-          throw "Failed to download MSI: $($_.Exception.Message)"
-        }
-
-        Write-Host "Verifying downloaded MSI..."
-        if (-not (Test-Path $outputFile)) { throw "MSI download verification failed: $outputFile not found." }
-        # Add a basic size check if desired (e.g., > 1MB)
-        # if ((Get-Item $outputFile).Length -lt 1MB) { throw "MSI download verification failed: File size too small."}
-
-        Write-Host "Running TA-Lib C library MSI installer silently..."
-        # Use msiexec for silent installation
-        # /i installs the product
-        # /qn provides a quiet installation with no UI
-        # /norestart prevents automatic restarts
-        $msiexecArgs = @("/i", "`"$outputFile`"", "/qn", "/norestart", "/L*v", "`"${{ github.workspace }}\ta-lib-install.log`"")
-        Write-Host "Executing: msiexec $($msiexecArgs -join ' ')"
-        Start-Process msiexec -ArgumentList $msiexecArgs -Wait -PassThru
-        # Check exit code (0 usually means success)
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "MSI installation failed with exit code $LASTEXITCODE. Check log: ${{ github.workspace }}\ta-lib-install.log"
-            # Optional: Dump log content on failure
-            # Get-Content "${{ github.workspace }}\ta-lib-install.log" -Tail 50
-            exit $LASTEXITCODE
-        } else {
-            Write-Host "MSI installation completed successfully (Exit Code: $LASTEXITCODE)."
-        }
-        # Optional: Verify expected installation files/directories if needed
-
-    # --- Set Environment Variables for Python Build ---
-    # Note: Explicit Windows vars removed as MSI installer should handle registration.
-
-    - name: Set TA-Lib environment variables (macOS)
-      if: runner.os == 'macOS'
-      # Keep this for macOS brew, might still be needed depending on setup.py robustness
-      run: echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
-
-    # REMOVED: Set TA-Lib environment variables (Windows) - Handled by MSI installer
+        echo "Updating Homebrew..."
+        brew update --quiet
+        echo "Installing TA-Lib C library..."
+        brew install ta-lib
+        echo "TA-Lib C library installed via Homebrew."
+        # Set environment variable for the build step, pointing to brew installation
+        echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
+        echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
+        echo "TA_LIBRARY_PATH set to: $(brew --prefix ta-lib)/lib"
+        echo "TA_INCLUDE_PATH set to: $(brew --prefix ta-lib)/include"
 
     # --- Install Build Dependencies & NumPy >= 2.0 ---
     - name: Install Python build dependencies and NumPy
       run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
 
-    # --- Build the Wheel from PyPI Source ---
+    # --- Download TA-Lib sdist from PyPI ---
     - name: Download TA-Lib sdist from PyPI
       run: |
         mkdir sdist_dir
-        if [ -z "${{ env.TA_LIB_VERSION }}" ]; then
-          echo "Downloading latest TA-Lib sdist..."
-          python -m pip download --no-deps --no-binary :all: TA-Lib -d sdist_dir
-        else
-          echo "Downloading TA-Lib sdist version ${{ env.TA_LIB_VERSION }}..."
-          python -m pip download --no-deps --no-binary :all: "TA-Lib==${{ env.TA_LIB_VERSION }}" -d sdist_dir
+        echo "Downloading TA-Lib sdist version ${{ env.TA_LIB_PY_VERSION }} from PyPI..."
+        python -m pip download --no-deps --no-binary :all: "TA-Lib==${{ env.TA_LIB_PY_VERSION }}" -d sdist_dir
+        if [ $? -ne 0 ]; then
+          echo "::error::Failed to download TA-Lib sdist version ${{ env.TA_LIB_PY_VERSION }}"
+          exit 1
         fi
 
     - name: List downloaded sdist
       run: ls -l sdist_dir
 
+    # --- Extract sdist ---
+    - name: Extract sdist
+      run: |
+        mkdir build_dir
+        tar -xzf sdist_dir/TA-Lib-${{ env.TA_LIB_PY_VERSION }}.tar.gz -C build_dir
+        ls -l build_dir
+
+    # --- Build the Wheel from Extracted sdist ---
     - name: Build wheel from sdist
-      # This will use the pre-installed C library (via build/brew/MSI) and NumPy
-      run: python -m build --wheel sdist_dir/*.tar.gz -o dist
+      run: |
+        echo "Building wheel for TA-Lib ${{ env.TA_LIB_PY_VERSION }}..."
+        python -m build --wheel build_dir/TA-Lib-${{ env.TA_LIB_PY_VERSION }} -o dist
+        if [ $? -ne 0 ]; then
+          echo "::error::Failed to build wheel from sdist."
+          exit 1
+        fi
+        echo "Wheel build completed successfully."
+
+    - name: List built wheel
+      run: ls -l dist
 
     # --- Upload the Wheel as an Artifact ---
     - name: Upload Wheels
       uses: actions/upload-artifact@v4
       with:
-        name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_VERSION || 'latest' }}
+        name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_PY_VERSION }}
         path: dist/*.whl
-        if-no-files-found: error
+        if-no-files-found: error # Fail the workflow if no wheel was built
 

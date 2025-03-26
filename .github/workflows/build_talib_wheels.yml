@@ -5,13 +5,14 @@ on:
   push:
     branches: [ "main" ] # Optional: trigger on pushes to main
 
-# Optional: Pin the TA-Lib version you want to build for consistency
+# Define the TA-Lib version at the top level for easy access in steps
 env:
   TA_LIB_VERSION: "0.4.28" # Specify the desired version, or leave empty for latest
 
 jobs:
   build_wheels:
-    name: Build wheel ${{ env.TA_LIB_VERSION }} for ${{ matrix.os }} / Py${{ matrix.python-version }}
+    # CORRECTED: Removed env context from job name
+    name: Build wheel for ${{ matrix.os }} / Py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -68,11 +69,16 @@ jobs:
       run: python -m pip install --upgrade pip wheel build
 
     - name: Download TA-Lib sdist from PyPI
+      # This step CAN access the top-level env context
       run: |
         mkdir sdist_dir
-        python -m pip download --no-deps --no-binary :all: "TA-Lib==${{ env.TA_LIB_VERSION }}" -d sdist_dir
-      # If TA_LIB_VERSION is empty, use:
-      # python -m pip download --no-deps --no-binary :all: TA-Lib -d sdist_dir
+        if [ -z "${{ env.TA_LIB_VERSION }}" ]; then
+          echo "Downloading latest TA-Lib sdist..."
+          python -m pip download --no-deps --no-binary :all: TA-Lib -d sdist_dir
+        else
+          echo "Downloading TA-Lib sdist version ${{ env.TA_LIB_VERSION }}..."
+          python -m pip download --no-deps --no-binary :all: "TA-Lib==${{ env.TA_LIB_VERSION }}" -d sdist_dir
+        fi
 
     - name: List downloaded sdist
       run: ls -l sdist_dir
@@ -84,6 +90,7 @@ jobs:
     - name: Upload Wheels
       uses: actions/upload-artifact@v4
       with:
+        # Artifact naming CAN access the top-level env context
         name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_VERSION || 'latest' }}
         path: dist/*.whl
         if-no-files-found: error

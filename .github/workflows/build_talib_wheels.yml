@@ -1,14 +1,13 @@
 name: Build TA-Lib Wheels (from PyPI)
 
 on:
-  workflow_dispatch: # Allows manual triggering via GitHub UI or gh CLI
+  workflow_dispatch: # 允許手動觸發
   push:
-    branches: [ "main" ] # Optional: trigger on pushes to main
+    branches: [ "main" ] # 當 push 到 main 分支時觸發
 
-# Define the TA-Lib version at the top level for easy access in steps
+# 定義 TA-Lib 的版本（可根據需要更新）
 env:
-  # === USER ACTION: Verify/Change this version ===
-  TA_LIB_PY_VERSION: "0.6.3" # Python TA-Lib package version from PyPI
+  TA_LIB_PY_VERSION: "0.6.3" # 最新版本
 
 jobs:
   build_wheels:
@@ -18,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.12'] # Expand as needed
+        python-version: ['3.12'] # 可擴充其他版本
 
     steps:
     - name: Checkout repository (optional but good practice)
@@ -29,7 +28,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    # --- Install C TA-Lib Library (Platform Specific) ---
+    # --- 安裝 TA-Lib C 庫 (平台相關) ---
     - name: Install TA-Lib C Library (Linux - Build from Source 0.4.0)
       if: runner.os == 'Linux'
       run: |
@@ -48,7 +47,7 @@ jobs:
         echo "Installing TA-Lib C library..."
         sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
         echo "TA-Lib C library installation complete."
-        cd .. # Go back to the workspace root
+        cd .. # 回到工作目錄
 
     - name: Install TA-Lib C Library (macOS via Homebrew)
       if: runner.os == 'macOS'
@@ -58,44 +57,31 @@ jobs:
         echo "Installing TA-Lib C library..."
         brew install ta-lib
         echo "TA-Lib C library installed via Homebrew."
-        # Set environment variable for the build step, pointing to brew installation
+        # 設定環境變數以便 build 時找到庫與 header 檔案
         echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
         echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
         echo "TA_LIBRARY_PATH set to: $(brew --prefix ta-lib)/lib"
         echo "TA_INCLUDE_PATH set to: $(brew --prefix ta-lib)/include"
 
-    # --- Install Build Dependencies & NumPy >= 2.0 ---
+    # --- 安裝 Python 構建依賴與 NumPy ---
     - name: Install Python build dependencies and NumPy
       run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
 
-    # --- Download TA-Lib sdist from PyPI ---
-    - name: Download TA-Lib sdist from PyPI
+    # --- 直接從 GitHub clone TA-Lib Python repository ---
+    - name: Clone TA-Lib Python Repository
       run: |
-        mkdir sdist_dir
-        echo "Downloading TA-Lib sdist version ${{ env.TA_LIB_PY_VERSION }} from PyPI..."
-        python -m pip download --no-deps --no-binary :all: "TA-Lib==${{ env.TA_LIB_PY_VERSION }}" -d sdist_dir
+        git clone https://github.com/ta-lib/ta-lib-python.git
+        # 如有需要，可切換到特定分支或 tag，例如：
+        # cd ta-lib-python && git checkout main
+
+    # --- 從 clone 下來的程式碼構建 wheel ---
+    - name: Build wheel from cloned repository
+      run: |
+        cd ta-lib-python
+        echo "Building wheel for TA-Lib ${env.TA_LIB_PY_VERSION}..."
+        python -m build --wheel . -o ../dist
         if [ $? -ne 0 ]; then
-          echo "::error::Failed to download TA-Lib sdist version ${{ env.TA_LIB_PY_VERSION }}"
-          exit 1
-        fi
-
-    - name: List downloaded sdist
-      run: ls -l sdist_dir
-
-    # --- Extract sdist ---
-    - name: Extract sdist
-      run: |
-        mkdir build_dir
-        tar -xzf sdist_dir/TA-Lib-${{ env.TA_LIB_PY_VERSION }}.tar.gz -C build_dir
-        ls -l build_dir
-
-    # --- Build the Wheel from Extracted sdist ---
-    - name: Build wheel from sdist
-      run: |
-        echo "Building wheel for TA-Lib ${{ env.TA_LIB_PY_VERSION }}..."
-        python -m build --wheel build_dir/TA-Lib-${{ env.TA_LIB_PY_VERSION }} -o dist
-        if [ $? -ne 0 ]; then
-          echo "::error::Failed to build wheel from sdist."
+          echo "::error::Failed to build wheel from cloned repository."
           exit 1
         fi
         echo "Wheel build completed successfully."
@@ -103,11 +89,10 @@ jobs:
     - name: List built wheel
       run: ls -l dist
 
-    # --- Upload the Wheel as an Artifact ---
+    # --- 上傳生成的 wheel 作為 artifact ---
     - name: Upload Wheels
       uses: actions/upload-artifact@v4
       with:
         name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_PY_VERSION }}
         path: dist/*.whl
-        if-no-files-found: error # Fail the workflow if no wheel was built
-
+        if-no-files-found: error # 若未找到 wheel 則失敗

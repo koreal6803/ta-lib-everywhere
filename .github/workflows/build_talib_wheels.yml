@@ -45,8 +45,39 @@ jobs:
           echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
           echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
 
+
+      # --- 檢查 /usr/include 下的目錄是否為 ta-lib 或 ta_lib，並確認 header 存在 ---
+        - name: Check for TA-Lib header directory and file
+        if: runner.os == 'Linux'
+        run: |
+          echo "Listing /usr/include:"
+          ls /usr/include
+          if [ -d /usr/include/ta-lib ]; then
+            echo "Directory /usr/include/ta-lib exists."
+            if [ -f /usr/include/ta-lib/ta_defs.h ]; then
+              echo "Found header /usr/include/ta-lib/ta_defs.h."
+            else
+              echo "::error::Missing header /usr/include/ta-lib/ta_defs.h"
+              exit 1
+            fi
+          elif [ -d /usr/include/ta_lib ]; then
+            echo "Directory /usr/include/ta_lib exists."
+            if [ -f /usr/include/ta_lib/ta_defs.h ]; then
+              echo "Found header /usr/include/ta_lib/ta_defs.h."
+            else
+              echo "::error::Missing header /usr/include/ta_lib/ta_defs.h"
+              exit 1
+            fi
+          else
+            echo "::error::Neither /usr/include/ta-lib nor /usr/include/ta_lib directory found."
+            exit 1
+          fi
+
+
       - name: Install TA-Lib C Library (macOS via Homebrew)
         if: runner.os == 'macOS'
+        env:
+          MACOSX_DEPLOYMENT_TARGET: 14.0
         run: |
           echo "Updating Homebrew..."
           brew update --quiet

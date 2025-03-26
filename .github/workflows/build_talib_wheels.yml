@@ -5,9 +5,8 @@ on:
   push:
     branches: [ "main" ]  # 當 push 到 main 分支時觸發
 
-# 設定 TA-Lib 版本（例如最新版本 0.6.3）
 env:
-  TA_LIB_PY_VERSION: "0.6.3"
+  TA_LIB_PY_VERSION: "0.6.3"  # 最新版本
 
 jobs:
   build_wheels:
@@ -16,8 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest] # , macos-latest]
-        python-version: ['3.12']  # 可擴充其他版本
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.12']
 
     steps:
     - name: Checkout repository (optional but good practice)
@@ -28,27 +27,13 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    # --- 安裝 TA-Lib C 庫 (平台相關) ---
-    - name: Install TA-Lib C Library (Linux - Build from Source 0.4.0)
+    # --- 安裝 TA-Lib C 庫 (Ubuntu: 透過 apt-get 安裝) ---
+    - name: Install TA-Lib C Library (Linux via apt-get)
       if: runner.os == 'Linux'
       run: |
-        echo "Installing build tools..."
         sudo apt-get update -qq
-        sudo apt-get install -y -qq build-essential wget
-        echo "Downloading TA-Lib C library source (0.4.0)..."
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O ta-lib-0.4.0-src.tar.gz -q
-        echo "Extracting source..."
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib/
-        echo "Configuring TA-Lib C library..."
-        ./configure --prefix=/usr > configure.log 2>&1 || (cat configure.log && exit 1)
-        echo "Building TA-Lib C library..."
-        make > make.log 2>&1 || (cat make.log && exit 1)
-        echo "Installing TA-Lib C library..."
-        sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
-        echo "TA-Lib C library installation complete."
-        cd ..
-        # 設定 TA-Lib 的 include 與 lib 目錄
+        sudo apt-get install -y ta-lib libta-lib0-dev
+        echo "TA-Lib C library installed via apt-get."
         echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
         echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
 
@@ -60,7 +45,6 @@ jobs:
         echo "Installing TA-Lib C library..."
         brew install ta-lib
         echo "TA-Lib C library installed via Homebrew."
-        # 將 Homebrew 安裝路徑加入環境變數
         echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
         echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
 
@@ -72,6 +56,13 @@ jobs:
     - name: Clone TA-Lib Python Repository
       run: |
         git clone https://github.com/ta-lib/ta-lib-python.git
+
+    # --- 使用自訂的 setup.py 覆蓋原來的 setup.py ---
+    - name: Override setup.py with custom version
+      run: |
+        cp custom_setup.py ta-lib-python/setup.py
+        echo "Using custom setup.py:"
+        head -n 10 ta-lib-python/setup.py
 
     # --- 從 clone 下來的程式碼構建 wheel ---
     - name: Build wheel from cloned repository
@@ -94,4 +85,4 @@ jobs:
       with:
         name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_PY_VERSION }}
         path: dist/*.whl
-        if-no-files-found: error  # 若未找到 wheel 則失敗
+        if-no-files-found: error

@@ -11,16 +11,13 @@ dependencies = [
 requires = ["setuptools", "wheel", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.cibuildwheel]
-skip = "cp36-*, cp37-*, cp38-*, cp39-*, pp*"
-
 [tool.cibuildwheel.macos]
-skip = ["pp*"]
+skip = ["pp*", "cp38-*", "cp39-*"]
 archs = ["universal2"]
 
 [tool.cibuildwheel.linux]
-skip = ["pp*", "*musl*"]
+skip = ["pp*", "*musl*", "cp38-*", "cp39-*"]
 archs = ["x86_64", "aarch64"]
 
 [tool.cibuildwheel.windows]
-skip = ["pp*", "*32"]
+skip = ["pp*", "*32", "cp38-*", "cp39-*"]

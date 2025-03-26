@@ -8,7 +8,7 @@ on:
 # Define the TA-Lib version at the top level for easy access in steps
 env:
   # === USER ACTION: Verify/Change this version ===
-  TA_LIB_PY_VERSION: "0.4.28" # Python TA-Lib package version from PyPI
+  TA_LIB_PY_VERSION: "0.6.3" # Python TA-Lib package version from PyPI
 
 jobs:
   build_wheels:

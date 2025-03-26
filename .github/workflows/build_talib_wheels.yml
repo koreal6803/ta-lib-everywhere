@@ -1,13 +1,13 @@
-name: Build TA-Lib Wheels (from PyPI)
+name: Build TA-Lib Wheels (from GitHub)
 
 on:
-  workflow_dispatch: # 允許手動觸發
+  workflow_dispatch:  # 手動觸發
   push:
-    branches: [ "main" ] # 當 push 到 main 分支時觸發
+    branches: [ "main" ]  # 當 push 到 main 分支時觸發
 
-# 定義 TA-Lib 的版本（可根據需要更新）
+# 設定 TA-Lib 版本（例如最新版本 0.6.3）
 env:
-  TA_LIB_PY_VERSION: "0.6.3" # 最新版本
+  TA_LIB_PY_VERSION: "0.6.3"
 
 jobs:
   build_wheels:
@@ -16,8 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.12'] # 可擴充其他版本
+        os: [ubuntu-latest] # , macos-latest]
+        python-version: ['3.12']  # 可擴充其他版本
 
     steps:
     - name: Checkout repository (optional but good practice)
@@ -47,7 +47,10 @@ jobs:
         echo "Installing TA-Lib C library..."
         sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
         echo "TA-Lib C library installation complete."
-        cd .. # 回到工作目錄
+        cd ..
+        # 設定 TA-Lib 的 include 與 lib 目錄
+        echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
+        echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
 
     - name: Install TA-Lib C Library (macOS via Homebrew)
       if: runner.os == 'macOS'
@@ -57,22 +60,18 @@ jobs:
         echo "Installing TA-Lib C library..."
         brew install ta-lib
         echo "TA-Lib C library installed via Homebrew."
-        # 設定環境變數以便 build 時找到庫與 header 檔案
+        # 將 Homebrew 安裝路徑加入環境變數
         echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
         echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
-        echo "TA_LIBRARY_PATH set to: $(brew --prefix ta-lib)/lib"
-        echo "TA_INCLUDE_PATH set to: $(brew --prefix ta-lib)/include"
 
     # --- 安裝 Python 構建依賴與 NumPy ---
     - name: Install Python build dependencies and NumPy
       run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
 
-    # --- 直接從 GitHub clone TA-Lib Python repository ---
+    # --- 從 GitHub 直接 clone TA-Lib Python repository ---
     - name: Clone TA-Lib Python Repository
       run: |
         git clone https://github.com/ta-lib/ta-lib-python.git
-        # 如有需要，可切換到特定分支或 tag，例如：
-        # cd ta-lib-python && git checkout main
 
     # --- 從 clone 下來的程式碼構建 wheel ---
     - name: Build wheel from cloned repository
@@ -85,7 +84,9 @@ jobs:
           exit 1
         fi
         echo "Wheel build completed successfully."
-    
+
+    - name: List built wheel
+      run: ls -l dist
 
     # --- 上傳生成的 wheel 作為 artifact ---
     - name: Upload Wheels
@@ -93,4 +94,4 @@ jobs:
       with:
         name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_PY_VERSION }}
         path: dist/*.whl
-        if-no-files-found: error # 若未找到 wheel 則失敗
+        if-no-files-found: error  # 若未找到 wheel 則失敗

@@ -78,16 +78,14 @@ jobs:
     - name: Build wheel from cloned repository
       run: |
         cd ta-lib-python
-        echo "Building wheel for TA-Lib ${env.TA_LIB_PY_VERSION}..."
+        echo "Building wheel for TA-Lib $TA_LIB_PY_VERSION..."
         python -m build --wheel . -o ../dist
         if [ $? -ne 0 ]; then
           echo "::error::Failed to build wheel from cloned repository."
           exit 1
         fi
         echo "Wheel build completed successfully."
-
-    - name: List built wheel
-      run: ls -l dist
+    
 
     # --- 上傳生成的 wheel 作為 artifact ---
     - name: Upload Wheels

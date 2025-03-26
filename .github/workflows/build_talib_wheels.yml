@@ -10,93 +10,88 @@ env:
 
 jobs:
   build_wheels:
-    name: Build wheel for ${{ matrix.os }} / Py${{ matrix.python-version }}
+    name: Build wheels for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.12']
 
     steps:
-    - name: Checkout repository (optional but good practice)
-      uses: actions/checkout@v4
+      - name: Checkout repository (optional but good practice)
+        uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      # --- 安裝 TA-Lib C 庫 (平台相關) ---
+      - name: Install TA-Lib C Library (Linux - Build from Source 0.4.0)
+        if: runner.os == 'Linux'
+        run: |
+          echo "Installing build tools..."
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential wget
+          echo "Downloading TA-Lib C library source (0.4.0)..."
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O ta-lib-0.4.0-src.tar.gz -q
+          echo "Extracting source..."
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          echo "Configuring TA-Lib C library..."
+          ./configure --prefix=/usr > configure.log 2>&1 || (cat configure.log && exit 1)
+          echo "Building TA-Lib C library..."
+          make > make.log 2>&1 || (cat make.log && exit 1)
+          echo "Installing TA-Lib C library..."
+          sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
+          echo "TA-Lib C library installation complete."
+          cd ..
+          # 設定環境變數
+          echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
+          echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
 
-    # --- 安裝 TA-Lib C 庫 (平台相關) ---
-    - name: Install TA-Lib C Library (Linux - Build from Source 0.4.0)
-      if: runner.os == 'Linux'
-      run: |
-        echo "Installing build tools..."
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq build-essential wget
-        echo "Downloading TA-Lib C library source (0.4.0)..."
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O ta-lib-0.4.0-src.tar.gz -q
-        echo "Extracting source..."
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib/
-        echo "Configuring TA-Lib C library..."
-        ./configure --prefix=/usr > configure.log 2>&1 || (cat configure.log && exit 1)
-        echo "Building TA-Lib C library..."
-        make > make.log 2>&1 || (cat make.log && exit 1)
-        echo "Installing TA-Lib C library..."
-        sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
-        echo "TA-Lib C library installation complete."
-        cd ..
-        # 設定環境變數
-        echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
-        echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
+      - name: Install TA-Lib C Library (macOS via Homebrew)
+        if: runner.os == 'macOS'
+        run: |
+          echo "Updating Homebrew..."
+          brew update --quiet
+          echo "Installing TA-Lib C library..."
+          brew install ta-lib
+          echo "TA-Lib C library installed via Homebrew."
+          echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
+          echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
 
-    - name: Install TA-Lib C Library (macOS via Homebrew)
-      if: runner.os == 'macOS'
-      run: |
-        echo "Updating Homebrew..."
-        brew update --quiet
-        echo "Installing TA-Lib C library..."
-        brew install ta-lib
-        echo "TA-Lib C library installed via Homebrew."
-        echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
-        echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
+      # --- 安裝 Python 建置依賴、NumPy 與 cibuildwheel ---
+      - name: Install Python build dependencies, NumPy and cibuildwheel
+        run: python -m pip install --upgrade pip setuptools wheel build cibuildwheel "numpy>=2.0"
 
-    # --- 安裝 Python 構建依賴與 NumPy ---
-    - name: Install Python build dependencies and NumPy
-      run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
+      # --- 從 GitHub 直接 clone TA-Lib Python repository ---
+      - name: Clone TA-Lib Python Repository
+        run: git clone https://github.com/ta-lib/ta-lib-python.git
 
-    # --- 從 GitHub 直接 clone TA-Lib Python repository ---
-    - name: Clone TA-Lib Python Repository
-      run: |
-        git clone https://github.com/ta-lib/ta-lib-python.git
+      # --- 使用自訂的 setup.py 覆蓋原來的 setup.py ---
+      - name: Override setup.py with custom version
+        run: |
+          cp custom_setup.py ta-lib-python/setup.py
+          echo "Using custom setup.py:"
+          head -n 10 ta-lib-python/setup.py
 
-    # --- 使用自訂的 setup.py 覆蓋原來的 setup.py ---
-    - name: Override setup.py with custom version
-      run: |
-        cp custom_setup.py ta-lib-python/setup.py
-        echo "Using custom setup.py:"
-        head -n 10 ta-lib-python/setup.py
+      # --- 使用根目錄的 pyproject.toml 覆蓋 ta-lib-python/pyproject.toml ---
+      - name: Override pyproject.toml with root version
+        run: |
+          cp pyproject.toml ta-lib-python/pyproject.toml
+          echo "Using overridden pyproject.toml:"
+          head -n 10 ta-lib-python/pyproject.toml
 
-    # --- 從 clone 下來的程式碼構建 wheel ---
-    - name: Build wheel from cloned repository
-      run: |
-        cd ta-lib-python
-        echo "Building wheel for TA-Lib $TA_LIB_PY_VERSION..."
-        python -m build --wheel . -o ../dist
-        if [ $? -ne 0 ]; then
-          echo "::error::Failed to build wheel from cloned repository."
-          exit 1
-        fi
-        echo "Wheel build completed successfully."
+      # --- 使用 cibuildwheel 建構所有 Python 版本的 wheel ---
+      - name: Build wheels with cibuildwheel
+        run: |
+          cd ta-lib-python
+          echo "Building wheels for TA-Lib $TA_LIB_PY_VERSION..."
+          cibuildwheel --output-dir ../dist
 
-    - name: List built wheel
-      run: ls -l dist
+      - name: List built wheels
+        run: ls -l dist
 
-    # --- 上傳生成的 wheel 作為 artifact ---
-    - name: Upload Wheels
-      uses: actions/upload-artifact@v4
-      with:
-        name: talib-wheel-${{ matrix.os }}-py${{ matrix.python-version }}-${{ env.TA_LIB_PY_VERSION }}
-        path: dist/*.whl
-        if-no-files-found: error
+      # --- 上傳生成的 wheel 作為 artifact ---
+      - name: Upload Wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: talib-wheel-${{ matrix.os }}-py-all-${{ env.TA_LIB_PY_VERSION }}
+          path: dist/*.whl
+          if-no-files-found: error

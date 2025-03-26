@@ -1,0 +1,26 @@
+[project]
+name = "ta-lib-everywhere"
+version = "0.6.4"
+dynamic = ["authors", "classifiers", "description", "license", "readme"]
+dependencies = [
+    "setuptools",
+    "numpy>=2.0",
+]
+
+[build-system]
+requires = ["setuptools", "wheel", "numpy>=2.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+skip = "cp36-*, cp37-*, cp38-*, cp39-*, pp*"
+
+[tool.cibuildwheel.macos]
+skip = ["pp*"]
+archs = ["universal2"]
+
+[tool.cibuildwheel.linux]
+skip = ["pp*", "*musl*"]
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.windows]
+skip = ["pp*", "*32"]

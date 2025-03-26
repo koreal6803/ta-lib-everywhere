@@ -155,9 +155,9 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='TA-Lib',
+    name='ta-lib-everywhere',
     version='0.6.4',
-    description='Python wrapper for TA-Lib',
+    description='Compiled whls of TA-Lib',
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='John Benediktsson',

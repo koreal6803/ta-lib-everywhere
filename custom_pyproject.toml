@@ -3,7 +3,6 @@ name = "ta-lib-everywhere"
 version = "0.6.4"
 dynamic = ["authors", "classifiers", "description", "license", "readme"]
 dependencies = [
-    "setuptools",
     "numpy>=2.0",
 ]
 

@@ -13,23 +13,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        os: [ubuntu-latest] #, macos-latest]
+        python-version: ['3.11'] #, '3.12', '3.13']
         arch: [x86_64]
-        include:
+        # include:
           # Add ARM64 (aarch64) Linux support
-          - os: ubuntu-latest
-            python-version: '3.10'
-            arch: aarch64
-          - os: ubuntu-latest
-            python-version: '3.11'
-            arch: aarch64
-          - os: ubuntu-latest
-            python-version: '3.12'
-            arch: aarch64
-          - os: ubuntu-latest
-            python-version: '3.13'
-            arch: aarch64
+          # - os: ubuntu-latest
+          #   python-version: '3.10'
+          #   arch: aarch64
+          # - os: ubuntu-latest
+          #   python-version: '3.11'
+          #   arch: aarch64
+          # - os: ubuntu-latest
+          #   python-version: '3.12'
+          #   arch: aarch64
+          # - os: ubuntu-latest
+          #   python-version: '3.13'
+          #   arch: aarch64
 
     steps:
     - name: Checkout repository

@@ -161,7 +161,7 @@ jobs:
             cd /work/wheelhouse
             mkdir -p wheel_debug
             cd wheel_debug
-            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib
+            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib-everywhere
             \$PYTHON -c \"import talib; print('Successfully imported talib')\" || { echo \"Failed to import talib\"; exit 1; }
             
             # Repair wheel with auditwheel - use the module approach
@@ -277,7 +277,7 @@ jobs:
             cd /work/wheelhouse
             mkdir -p wheel_debug
             cd wheel_debug
-            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib
+            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib-everywhere
             \$PYTHON -c \"import talib; print('Successfully imported talib')\" || { echo \"Failed to import talib\"; exit 1; }
             
             # Repair wheel with auditwheel - use the module approach

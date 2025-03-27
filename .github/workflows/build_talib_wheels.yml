@@ -1,12 +1,10 @@
 name: Build TA-Lib Wheels (from GitHub)
 
 on:
-  workflow_dispatch:  # 手動觸發
-  push:
-    branches: [ "main" ]  # 當 push 到 main 分支時觸發
+  workflow_dispatch:  # Manual trigger
 
 env:
-  TA_LIB_PY_VERSION: "0.6.3"  # 最新版本
+  TA_LIB_PY_VERSION: "0.6.3"  # Latest version
 
 jobs:
   build_wheels:
@@ -19,7 +17,7 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13']
         arch: [x86_64]
         include:
-          # 添加 ARM64 (aarch64) Linux 支持
+          # Add ARM64 (aarch64) Linux support
           - os: ubuntu-latest
             python-version: '3.10'
             arch: aarch64
@@ -37,7 +35,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 設定 QEMU 以支持 ARM 架構
+    # Set up QEMU to support ARM architecture
     - name: Set up QEMU
       if: matrix.arch == 'aarch64'
       uses: docker/setup-qemu-action@v3
@@ -50,7 +48,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    # --- 安裝 TA-Lib C 庫 (平台與架構相關) ---
+    # --- Install TA-Lib C Library (platform and architecture specific) ---
     - name: Install TA-Lib C Library (Linux x86_64 - Build from Source 0.4.0)
       if: runner.os == 'Linux' && matrix.arch == 'x86_64'
       run: |
@@ -70,7 +68,7 @@ jobs:
         sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
         echo "TA-Lib C library installation complete."
         cd ..
-        # 設定環境變數
+        # Set environment variables
         echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
         echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
 
@@ -85,19 +83,19 @@ jobs:
         echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
         echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
 
-    # --- 在 aarch64 的 Docker 環境中構建 ---
+    # --- Build in aarch64 Docker environment ---
     - name: Build wheel for Linux aarch64
       if: runner.os == 'Linux' && matrix.arch == 'aarch64'
       run: |
-        # 準備目錄結構
+        # Prepare directory structure
         mkdir -p dist
-        # 使用 Docker 容器進行跨平台構建
+        # Use Docker container for cross-platform building
         docker run --rm -v $(pwd):/work --platform linux/arm64 -w /work \
           python:${{ matrix.python-version }}-slim bash -c "
-            # 安裝構建工具
+            # Install build tools
             apt-get update && apt-get install -y build-essential wget git
             
-            # 下載並安裝 TA-Lib C 庫
+            # Download and install TA-Lib C library
             cd /tmp
             wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -q
             tar -xzf ta-lib-0.4.0-src.tar.gz
@@ -108,30 +106,31 @@ jobs:
             make install
             cd /work
             
-            # 安裝 Python 依賴
+            # Install Python dependencies
             pip install --upgrade pip setuptools wheel build 'numpy>=2.0'
             
-            # 複製自訂 setup.py
+            # Copy custom setup.py
             git clone https://github.com/ta-lib/ta-lib-python.git
             cp custom_setup.py ta-lib-python/setup.py
+            cp pyproject.toml ta-lib-python/pyproject.toml
             
-            # 構建 wheel
+            # Build wheel
             cd ta-lib-python
             TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib python -m build --wheel . -o ../dist
           "
 
-    # --- 安裝 Python 構建依賴與 NumPy (僅適用於非aarch64構建) ---
+    # --- Install Python build dependencies and NumPy (non-aarch64 builds only) ---
     - name: Install Python build dependencies and NumPy
       if: matrix.arch == 'x86_64'
       run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
 
-    # --- 從 GitHub 直接 clone TA-Lib Python repository (僅適用於非aarch64構建) ---
+    # --- Clone TA-Lib Python repository directly from GitHub (non-aarch64 builds only) ---
     - name: Clone TA-Lib Python Repository
       if: matrix.arch == 'x86_64'
       run: |
         git clone https://github.com/ta-lib/ta-lib-python.git
         
-    # --- 使用自訂的 setup.py 覆蓋原來的 setup.py (僅適用於非aarch64構建) ---
+    # --- Override original setup.py with custom version (non-aarch64 builds only) ---
     - name: Override setup.py with custom version
       if: matrix.arch == 'x86_64'
       run: |
@@ -139,7 +138,7 @@ jobs:
         echo "Using custom setup.py:"
         head -n 10 ta-lib-python/setup.py
         
-    # --- 從 clone 下來的程式碼構建 wheel (僅適用於非aarch64構建) ---
+    # --- Build wheel from cloned code (non-aarch64 builds only) ---
     - name: Build wheel from cloned repository
       if: matrix.arch == 'x86_64'
       run: |
@@ -155,7 +154,7 @@ jobs:
     - name: List built wheel
       run: ls -l dist
 
-    # --- 上傳生成的 wheel 作為 artifact ---
+    # --- Upload generated wheels as artifacts ---
     - name: Upload Wheels
       uses: actions/upload-artifact@v4
       with:

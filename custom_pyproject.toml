@@ -1,6 +1,6 @@
 [project]
 name = "ta-lib-everywhere"
-version = "0.6.4"
+version = "0.6.5"
 dynamic = ["authors", "classifiers", "description", "license", "readme"]
 dependencies = [
     "numpy>=2.0",

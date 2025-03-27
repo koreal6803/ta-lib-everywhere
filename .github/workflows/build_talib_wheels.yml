@@ -13,23 +13,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest] #, macos-latest]
-        python-version: ['3.11'] #, '3.12', '3.13']
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12', '3.13']
         arch: [x86_64]
-        # include:
-          # Add ARM64 (aarch64) Linux support
-          # - os: ubuntu-latest
-          #   python-version: '3.10'
-          #   arch: aarch64
-          # - os: ubuntu-latest
-          #   python-version: '3.11'
-          #   arch: aarch64
-          # - os: ubuntu-latest
-          #   python-version: '3.12'
-          #   arch: aarch64
-          # - os: ubuntu-latest
-          #   python-version: '3.13'
-          #   arch: aarch64
+        include:
+        #   Add ARM64 (aarch64) Linux support
+          - os: ubuntu-latest
+            python-version: '3.10'
+            arch: aarch64
+          - os: ubuntu-latest
+            python-version: '3.11'
+            arch: aarch64
+          - os: ubuntu-latest
+            python-version: '3.12'
+            arch: aarch64
+          - os: ubuntu-latest
+            python-version: '3.13'
+            arch: aarch64
 
     steps:
     - name: Checkout repository
@@ -46,17 +46,6 @@ jobs:
         cp custom_pyproject.toml ta-lib-python/pyproject.toml
         echo "Using custom setup.py and pyproject.toml"
 
-    # Setup steps for regular x86_64 builds
-    - name: Set up Python ${{ matrix.python-version }}
-      if: matrix.arch == 'x86_64'
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install Python build dependencies (x86_64)
-      if: matrix.arch == 'x86_64'
-      run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
-
     # Setup steps for ARM64 builds
     - name: Set up QEMU
       if: matrix.arch == 'aarch64'
@@ -65,111 +54,26 @@ jobs:
         platforms: arm64
 
     # TA-Lib C library installation - platform specific
-    - name: Install TA-Lib C Library and Build Wheel (Linux x86_64)
-      if: runner.os == 'Linux' && matrix.arch == 'x86_64'
+    # Option 1: Use the existing file
+    - name: Build wheel for Linux (${{ matrix.arch }})
+      if: runner.os == 'Linux'
       run: |
-        # Prepare directory structure
         mkdir -p dist wheelhouse
-        # Use manylinux Docker container for building PyPI-compatible wheels
-        docker run --rm -v $(pwd):/work -w /work \
-          quay.io/pypa/manylinux2014_x86_64 bash -c "
-            # Install build tools
-            yum install -y wget git
-            
-            # Download and install TA-Lib C library
-            cd /tmp
-            wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -q
-            tar -xzf ta-lib-0.4.0-src.tar.gz
-            cd ta-lib/
-            ./configure --prefix=/usr
-            make -j\$(nproc)
-            make install
-            cd /work
-            
-            # Find the matching Python version
-            PY_VERSION=\"${{ matrix.python-version }}\"
-            PYTHON_PATH=\"/opt/python/cp\${PY_VERSION//./}*/bin/python\"
-            
-            # Check if Python exists for this version
-            if ! ls \$PYTHON_PATH >/dev/null 2>&1; then
-              echo \"Python \$PY_VERSION not found in manylinux container! Attempting to compile from source...\"
-              
-              if [ \"\$PY_VERSION\" = \"3.13\" ]; then
-                # Install build dependencies
-                yum install -y gcc openssl-devel bzip2-devel libffi-devel zlib-devel
-                
-                # Download and compile Python 3.13
-                cd /tmp
-                wget https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz
-                tar xzf Python-3.13.0.tgz
-                cd Python-3.13.0
-                ./configure --enable-optimizations --prefix=/usr/local/python-3.13
-                make -j\$(nproc)
-                make install
-                
-                # Set path to our compiled Python
-                PYTHON=\"/usr/local/python-3.13/bin/python3.13\"
-                
-                # Verify installation
-                if [ ! -f \"\$PYTHON\" ]; then
-                  echo \"Failed to compile Python \$PY_VERSION\"
-                  mkdir -p /work/dist
-                  echo \"Python \$PY_VERSION compilation failed\" > /work/dist/python-unavailable.txt
-                  exit 0
-                fi
-                
-                echo \"Successfully compiled Python \$PY_VERSION\"
-              else
-                echo \"Python \$PY_VERSION not available and not configured for compilation\"
-                mkdir -p /work/dist
-                echo \"Python \$PY_VERSION not available in manylinux image\" > /work/dist/python-unavailable.txt
-                exit 0
-              fi
-            else
-              # More robust Python interpreter selection
-              echo \"Available Python interpreters:\"
-              ls -la \$PYTHON_PATH
-              
-              # Choose Python interpreter using full path and explicit glob expansion
-              PYTHON_INTERPRETERS=(/opt/python/cp\${PY_VERSION//./}*/bin/python)
-              PYTHON=\"\${PYTHON_INTERPRETERS[0]}\"
-              
-              echo \"Selected Python interpreter: \$PYTHON\"
-              
-              # Verify the Python interpreter works
-              if ! \$PYTHON --version; then
-                echo \"Python interpreter found but not functioning properly\"
-                exit 1
-              fi
-            fi
-            
-            # Install Python dependencies
-            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0' auditwheel
-            
-            # Verify TA-Lib C library installation
-            echo \"Verifying TA-Lib installation:\"
-            nm -D /usr/lib/libta_lib.so.0 | grep TA_AVGDEV_Lookback
-            
-            # Build wheel with explicit library paths
-            cd ta-lib-python
-            export TA_INCLUDE_PATH=/usr/include
-            export TA_LIBRARY_PATH=/usr/lib
-            export LD_LIBRARY_PATH=/usr/lib:\$LD_LIBRARY_PATH
-            \$PYTHON -m build --wheel . -o /work/wheelhouse
-            
-            # Debug: Examine the built wheel
-            cd /work/wheelhouse
-            mkdir -p wheel_debug
-            cd wheel_debug
-            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib-everywhere
-            \$PYTHON -c \"import talib; print('Successfully imported talib')\" || { echo \"Failed to import talib\"; exit 1; }
-            
-            # Repair wheel with auditwheel - use the module approach
-            cd /work
-            \$PYTHON -m auditwheel repair wheelhouse/*.whl --plat manylinux2014_x86_64 -w dist/
-          "
+        chmod +x build_linux.sh
+        docker run --rm -v $(pwd):/work \
+          ${{ matrix.arch == 'aarch64' && '--platform linux/arm64' || '' }} \
+          -w /work \
+          quay.io/pypa/manylinux2014_${{ matrix.arch }} \
+          ./build_linux.sh ${{ matrix.arch }} ${{ matrix.python-version }}
 
-    - name: Install TA-Lib C Library (macOS)
+    # Setup steps for regular x86_64 builds
+    - name: Set up Python ${{ matrix.python-version }} on macOS
+      if: runner.os == 'macOS'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install TA-Lib (macOS)
       if: runner.os == 'macOS'
       run: |
         echo "Updating Homebrew..."
@@ -179,116 +83,6 @@ jobs:
         echo "TA-Lib C library installed via Homebrew."
         echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
         echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
-
-    # Build wheels - platform specific methods
-    - name: Build wheel for Linux aarch64
-      if: runner.os == 'Linux' && matrix.arch == 'aarch64'
-      run: |
-        # Prepare directory structure
-        mkdir -p dist wheelhouse
-        # Use manylinux Docker container for building PyPI-compatible wheels
-        docker run --rm -v $(pwd):/work --platform linux/arm64 -w /work \
-          quay.io/pypa/manylinux2014_aarch64 bash -c "
-            # Install build tools
-            yum install -y wget git
-            
-            # Download and install TA-Lib C library
-            cd /tmp
-            wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -q
-            tar -xzf ta-lib-0.4.0-src.tar.gz
-            cd ta-lib/
-            ./configure --build=aarch64-unknown-linux-gnu --prefix=/usr
-            make -j\$(nproc)
-            make install
-            cd /work
-            
-            # Find the matching Python version
-            PY_VERSION=\"${{ matrix.python-version }}\"
-            PYTHON_PATH=\"/opt/python/cp\${PY_VERSION//./}*/bin/python\"
-            
-            # Check if Python exists for this version
-            if ! ls \$PYTHON_PATH >/dev/null 2>&1; then
-              echo \"Python \$PY_VERSION not found in manylinux container! Attempting to compile from source...\"
-              
-              if [ \"\$PY_VERSION\" = \"3.13\" ]; then
-                # Install build dependencies
-                yum install -y gcc openssl-devel bzip2-devel libffi-devel zlib-devel
-                
-                # Download and compile Python 3.13
-                cd /tmp
-                wget https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz
-                tar xzf Python-3.13.0.tgz
-                cd Python-3.13.0
-                ./configure --enable-optimizations --prefix=/usr/local/python-3.13
-                make -j\$(nproc)
-                make install
-                
-                # Set path to our compiled Python
-                PYTHON=\"/usr/local/python-3.13/bin/python3.13\"
-                
-                # Verify installation
-                if [ ! -f \"\$PYTHON\" ]; then
-                  echo \"Failed to compile Python \$PY_VERSION\"
-                  mkdir -p /work/dist
-                  echo \"Python \$PY_VERSION compilation failed\" > /work/dist/python-unavailable.txt
-                  exit 0
-                fi
-                
-                echo \"Successfully compiled Python \$PY_VERSION\"
-              else
-                echo \"Python \$PY_VERSION not available and not configured for compilation\"
-                mkdir -p /work/dist
-                echo \"Python \$PY_VERSION not available in manylinux image\" > /work/dist/python-unavailable.txt
-                exit 0
-              fi
-            else
-              # More robust Python interpreter selection
-              echo \"Available Python interpreters:\"
-              ls -la \$PYTHON_PATH
-              
-              # Choose Python interpreter using full path and explicit glob expansion
-              PYTHON_INTERPRETERS=(/opt/python/cp\${PY_VERSION//./}*/bin/python)
-              PYTHON=\"\${PYTHON_INTERPRETERS[0]}\"
-              
-              echo \"Selected Python interpreter: \$PYTHON\"
-              
-              # Verify the Python interpreter works
-              if ! \$PYTHON --version; then
-                echo \"Python interpreter found but not functioning properly\"
-                exit 1
-              fi
-            fi
-            
-            # Install Python dependencies
-            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0' auditwheel
-            
-            # Verify TA-Lib C library installation
-            echo \"Verifying TA-Lib installation:\"
-            nm -D /usr/lib/libta_lib.so.0 | grep TA_AVGDEV_Lookback
-            
-            # Build wheel with explicit library paths
-            cd ta-lib-python
-            export TA_INCLUDE_PATH=/usr/include
-            export TA_LIBRARY_PATH=/usr/lib
-            export LD_LIBRARY_PATH=/usr/lib:\$LD_LIBRARY_PATH
-            \$PYTHON -m build --wheel . -o /work/wheelhouse
-            
-            # Debug: Examine the built wheel
-            cd /work/wheelhouse
-            mkdir -p wheel_debug
-            cd wheel_debug
-            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib-everywhere
-            \$PYTHON -c \"import talib; print('Successfully imported talib')\" || { echo \"Failed to import talib\"; exit 1; }
-            
-            # Repair wheel with auditwheel - use the module approach
-            cd /work
-            \$PYTHON -m auditwheel repair wheelhouse/*.whl --plat manylinux2014_aarch64 -w dist/
-          "
-
-    # The macOS build process doesn't need to change
-    - name: Build wheel for x86_64
-      if: runner.os == 'macOS'
-      run: |
         cd ta-lib-python
         echo "Building wheel for TA-Lib $TA_LIB_PY_VERSION..."
         python -m build --wheel . -o ../dist

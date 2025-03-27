@@ -20,7 +20,7 @@ except ImportError:
 
 platform_supported = False
 
-lib_talib_name = 'ta_lib'               # the name as of TA-Lib 0.6.1
+lib_talib_name = 'ta-lib'               # the name as of TA-Lib 0.6.1
 
 if any(s in sys.platform for s in ['darwin', 'linux', 'bsd', 'sunos']):
     platform_supported = True
@@ -134,10 +134,6 @@ class LazyBuildExtCommandClass(dict):
 
 cmdclass = LazyBuildExtCommandClass()
 
-# if in macos we need ta-lib, and if in ubuntu we need ta_lib if in windows we need ta-lib-static
-library_name = 'ta-lib' if sys.platform == 'darwin' \
-    else 'ta_lib' if sys.platform == 'linux' \
-    else 'ta-lib-static'
 
 ext_modules = [
     Extension(
@@ -145,7 +141,7 @@ ext_modules = [
         ['talib/_ta_lib.pyx' if has_cython else 'talib/_ta_lib.c'],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
-        libraries=[library_name],
+        libraries=[lib_talib_name],
         runtime_library_dirs=[] if sys.platform == 'win32' else library_dirs)
 ]
 
@@ -156,7 +152,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='ta-lib-everywhere',
-    version='0.6.4',
+    version='0.6.5',
     description='Compiled whls of TA-Lib',
     long_description=long_description,
     long_description_content_type='text/markdown',

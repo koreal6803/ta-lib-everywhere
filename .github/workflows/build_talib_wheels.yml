@@ -112,7 +112,7 @@ jobs:
             # Copy custom setup.py
             git clone https://github.com/ta-lib/ta-lib-python.git
             cp custom_setup.py ta-lib-python/setup.py
-            cp pyproject.toml ta-lib-python/pyproject.toml
+            cp custom_pyproject.toml ta-lib-python/pyproject.toml
             
             # Build wheel
             cd ta-lib-python

@@ -126,10 +126,15 @@ jobs:
                 exit 0
               fi
             else
-              # Select just the first matching Python interpreter
-              PYTHON_FILES=($PYTHON_PATH)
-              PYTHON=\"${PYTHON_FILES[0]}\"
+              # Select just the first matching Python interpreter - more safely
+              PYTHON=$(ls $PYTHON_PATH | head -n 1)
               echo \"Using Python: \$PYTHON\"
+              
+              # Verify the Python interpreter works
+              if ! \$PYTHON --version; then
+                echo \"Python interpreter found but not functioning properly\"
+                exit 1
+              fi
             fi
             
             # Install Python dependencies
@@ -217,10 +222,15 @@ jobs:
                 exit 0
               fi
             else
-              # Select just the first matching Python interpreter
-              PYTHON_FILES=($PYTHON_PATH)
-              PYTHON=\"${PYTHON_FILES[0]}\"
+              # Select just the first matching Python interpreter - more safely
+              PYTHON=$(ls $PYTHON_PATH | head -n 1)
               echo \"Using Python: \$PYTHON\"
+              
+              # Verify the Python interpreter works
+              if ! \$PYTHON --version; then
+                echo \"Python interpreter found but not functioning properly\"
+                exit 1
+              fi
             fi
             
             # Install Python dependencies

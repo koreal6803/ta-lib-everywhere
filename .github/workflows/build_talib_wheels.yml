@@ -126,7 +126,9 @@ jobs:
                 exit 0
               fi
             else
-              PYTHON=\$(ls \$PYTHON_PATH)
+              # Select just the first matching Python interpreter
+              PYTHON_FILES=($PYTHON_PATH)
+              PYTHON=\"${PYTHON_FILES[0]}\"
               echo \"Using Python: \$PYTHON\"
             fi
             
@@ -215,7 +217,9 @@ jobs:
                 exit 0
               fi
             else
-              PYTHON=\$(ls \$PYTHON_PATH)
+              # Select just the first matching Python interpreter
+              PYTHON_FILES=($PYTHON_PATH)
+              PYTHON=\"${PYTHON_FILES[0]}\"
               echo \"Using Python: \$PYTHON\"
             fi
             

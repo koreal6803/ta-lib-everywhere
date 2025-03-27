@@ -65,28 +65,42 @@ jobs:
         platforms: arm64
 
     # TA-Lib C library installation - platform specific
-    - name: Install TA-Lib C Library (Linux x86_64)
+    - name: Install TA-Lib C Library and Build Wheel (Linux x86_64)
       if: runner.os == 'Linux' && matrix.arch == 'x86_64'
       run: |
-        echo "Installing build tools..."
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq build-essential wget
-        echo "Downloading TA-Lib C library source (0.4.0)..."
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -O ta-lib-0.4.0-src.tar.gz -q
-        echo "Extracting source..."
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib/
-        echo "Configuring TA-Lib C library..."
-        ./configure --prefix=/usr > configure.log 2>&1 || (cat configure.log && exit 1)
-        echo "Building TA-Lib C library..."
-        make > make.log 2>&1 || (cat make.log && exit 1)
-        echo "Installing TA-Lib C library..."
-        sudo make install > make_install.log 2>&1 || (cat make_install.log && exit 1)
-        echo "TA-Lib C library installation complete."
-        cd ..
-        # Set environment variables
-        echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
-        echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
+        # Prepare directory structure
+        mkdir -p dist wheelhouse
+        # Use manylinux Docker container for building PyPI-compatible wheels
+        docker run --rm -v $(pwd):/work -w /work \
+          quay.io/pypa/manylinux2014_x86_64 bash -c "
+            # Install build tools
+            yum install -y wget git
+            
+            # Download and install TA-Lib C library
+            cd /tmp
+            wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz -q
+            tar -xzf ta-lib-0.4.0-src.tar.gz
+            cd ta-lib/
+            ./configure --prefix=/usr
+            make -j\$(nproc)
+            make install
+            cd /work
+            
+            # Find the matching Python version
+            PY_VERSION=\"${{ matrix.python-version }}\"
+            PYTHON=\"/opt/python/cp\${PY_VERSION//./}*/bin/python\"
+            
+            # Install Python dependencies
+            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0'
+            
+            # Build wheel
+            cd ta-lib-python
+            TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib \$PYTHON -m build --wheel . -o /work/wheelhouse
+            
+            # Repair wheel with auditwheel
+            cd /work
+            /opt/python/cp\${PY_VERSION//./}*/bin/auditwheel repair wheelhouse/*.whl --plat manylinux2014_x86_64 -w dist/
+          "
 
     - name: Install TA-Lib C Library (macOS)
       if: runner.os == 'macOS'
@@ -104,12 +118,12 @@ jobs:
       if: runner.os == 'Linux' && matrix.arch == 'aarch64'
       run: |
         # Prepare directory structure
-        mkdir -p dist
-        # Use Docker container for cross-platform building
+        mkdir -p dist wheelhouse
+        # Use manylinux Docker container for building PyPI-compatible wheels
         docker run --rm -v $(pwd):/work --platform linux/arm64 -w /work \
-          python:${{ matrix.python-version }}-slim bash -c "
+          quay.io/pypa/manylinux2014_aarch64 bash -c "
             # Install build tools
-            apt-get update && apt-get install -y build-essential wget git
+            yum install -y wget git
             
             # Download and install TA-Lib C library
             cd /tmp
@@ -117,21 +131,29 @@ jobs:
             tar -xzf ta-lib-0.4.0-src.tar.gz
             cd ta-lib/
             ./configure --build=aarch64-unknown-linux-gnu --prefix=/usr
-            
-            make -j$(nproc)
+            make -j\$(nproc)
             make install
             cd /work
             
+            # Find the matching Python version
+            PY_VERSION=\"${{ matrix.python-version }}\"
+            PYTHON=\"/opt/python/cp\${PY_VERSION//./}*/bin/python\"
+            
             # Install Python dependencies
-            pip install --upgrade pip setuptools wheel build 'numpy>=2.0'
+            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0'
             
             # Build wheel
             cd ta-lib-python
-            TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib python -m build --wheel . -o ../dist
+            TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib \$PYTHON -m build --wheel . -o /work/wheelhouse
+            
+            # Repair wheel with auditwheel
+            cd /work
+            /opt/python/cp\${PY_VERSION//./}*/bin/auditwheel repair wheelhouse/*.whl --plat manylinux2014_aarch64 -w dist/
           "
 
+    # The macOS build process doesn't need to change
     - name: Build wheel for x86_64
-      if: matrix.arch == 'x86_64'
+      if: runner.os == 'macOS'
       run: |
         cd ta-lib-python
         echo "Building wheel for TA-Lib $TA_LIB_PY_VERSION..."

@@ -34,22 +34,38 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      
+    # Common setup steps that apply to all builds
+    - name: Clone TA-Lib Python Repository
+      run: |
+        git clone https://github.com/ta-lib/ta-lib-python.git
+        
+    - name: Override with custom files
+      run: |
+        cp custom_setup.py ta-lib-python/setup.py
+        cp custom_pyproject.toml ta-lib-python/pyproject.toml
+        echo "Using custom setup.py and pyproject.toml"
 
-    # Set up QEMU to support ARM architecture
+    # Setup steps for regular x86_64 builds
+    - name: Set up Python ${{ matrix.python-version }}
+      if: matrix.arch == 'x86_64'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Python build dependencies (x86_64)
+      if: matrix.arch == 'x86_64'
+      run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
+
+    # Setup steps for ARM64 builds
     - name: Set up QEMU
       if: matrix.arch == 'aarch64'
       uses: docker/setup-qemu-action@v3
       with:
         platforms: arm64
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      if: matrix.arch == 'x86_64'
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    # --- Install TA-Lib C Library (platform and architecture specific) ---
-    - name: Install TA-Lib C Library (Linux x86_64 - Build from Source 0.4.0)
+    # TA-Lib C library installation - platform specific
+    - name: Install TA-Lib C Library (Linux x86_64)
       if: runner.os == 'Linux' && matrix.arch == 'x86_64'
       run: |
         echo "Installing build tools..."
@@ -72,7 +88,7 @@ jobs:
         echo "TA_INCLUDE_PATH=/usr/include" >> $GITHUB_ENV
         echo "TA_LIBRARY_PATH=/usr/lib" >> $GITHUB_ENV
 
-    - name: Install TA-Lib C Library (macOS via Homebrew)
+    - name: Install TA-Lib C Library (macOS)
       if: runner.os == 'macOS'
       run: |
         echo "Updating Homebrew..."
@@ -83,7 +99,7 @@ jobs:
         echo "TA_LIBRARY_PATH=$(brew --prefix ta-lib)/lib" >> $GITHUB_ENV
         echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
 
-    # --- Build in aarch64 Docker environment ---
+    # Build wheels - platform specific methods
     - name: Build wheel for Linux aarch64
       if: runner.os == 'Linux' && matrix.arch == 'aarch64'
       run: |
@@ -109,37 +125,12 @@ jobs:
             # Install Python dependencies
             pip install --upgrade pip setuptools wheel build 'numpy>=2.0'
             
-            # Copy custom setup.py
-            git clone https://github.com/ta-lib/ta-lib-python.git
-            cp custom_setup.py ta-lib-python/setup.py
-            cp custom_pyproject.toml ta-lib-python/pyproject.toml
-            
             # Build wheel
             cd ta-lib-python
             TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib python -m build --wheel . -o ../dist
           "
 
-    # --- Install Python build dependencies and NumPy (non-aarch64 builds only) ---
-    - name: Install Python build dependencies and NumPy
-      if: matrix.arch == 'x86_64'
-      run: python -m pip install --upgrade pip setuptools wheel build "numpy>=2.0"
-
-    # --- Clone TA-Lib Python repository directly from GitHub (non-aarch64 builds only) ---
-    - name: Clone TA-Lib Python Repository
-      if: matrix.arch == 'x86_64'
-      run: |
-        git clone https://github.com/ta-lib/ta-lib-python.git
-        
-    # --- Override original setup.py with custom version (non-aarch64 builds only) ---
-    - name: Override setup.py with custom version
-      if: matrix.arch == 'x86_64'
-      run: |
-        cp custom_setup.py ta-lib-python/setup.py
-        echo "Using custom setup.py:"
-        head -n 10 ta-lib-python/setup.py
-        
-    # --- Build wheel from cloned code (non-aarch64 builds only) ---
-    - name: Build wheel from cloned repository
+    - name: Build wheel for x86_64
       if: matrix.arch == 'x86_64'
       run: |
         cd ta-lib-python
@@ -154,7 +145,7 @@ jobs:
     - name: List built wheel
       run: ls -l dist
 
-    # --- Upload generated wheels as artifacts ---
+    # Upload wheel artifacts
     - name: Upload Wheels
       uses: actions/upload-artifact@v4
       with:

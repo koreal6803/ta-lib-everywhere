@@ -126,9 +126,15 @@ jobs:
                 exit 0
               fi
             else
-              # Select just the first matching Python interpreter - more safely
-              PYTHON=$(ls $PYTHON_PATH | head -n 1)
-              echo \"Using Python: \$PYTHON\"
+              # More robust Python interpreter selection
+              echo \"Available Python interpreters:\"
+              ls -la \$PYTHON_PATH
+              
+              # Choose Python interpreter using full path and explicit glob expansion
+              PYTHON_INTERPRETERS=(/opt/python/cp\${PY_VERSION//./}*/bin/python)
+              PYTHON=\"\${PYTHON_INTERPRETERS[0]}\"
+              
+              echo \"Selected Python interpreter: \$PYTHON\"
               
               # Verify the Python interpreter works
               if ! \$PYTHON --version; then
@@ -222,9 +228,15 @@ jobs:
                 exit 0
               fi
             else
-              # Select just the first matching Python interpreter - more safely
-              PYTHON=$(ls $PYTHON_PATH | head -n 1)
-              echo \"Using Python: \$PYTHON\"
+              # More robust Python interpreter selection
+              echo \"Available Python interpreters:\"
+              ls -la \$PYTHON_PATH
+              
+              # Choose Python interpreter using full path and explicit glob expansion
+              PYTHON_INTERPRETERS=(/opt/python/cp\${PY_VERSION//./}*/bin/python)
+              PYTHON=\"\${PYTHON_INTERPRETERS[0]}\"
+              
+              echo \"Selected Python interpreter: \$PYTHON\"
               
               # Verify the Python interpreter works
               if ! \$PYTHON --version; then

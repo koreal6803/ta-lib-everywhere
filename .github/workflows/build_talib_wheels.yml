@@ -146,9 +146,23 @@ jobs:
             # Install Python dependencies
             \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0' auditwheel
             
-            # Build wheel
+            # Verify TA-Lib C library installation
+            echo \"Verifying TA-Lib installation:\"
+            nm -D /usr/lib/libta_lib.so.0 | grep TA_AVGDEV_Lookback
+            
+            # Build wheel with explicit library paths
             cd ta-lib-python
-            TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib \$PYTHON -m build --wheel . -o /work/wheelhouse
+            export TA_INCLUDE_PATH=/usr/include
+            export TA_LIBRARY_PATH=/usr/lib
+            export LD_LIBRARY_PATH=/usr/lib:\$LD_LIBRARY_PATH
+            \$PYTHON -m build --wheel . -o /work/wheelhouse
+            
+            # Debug: Examine the built wheel
+            cd /work/wheelhouse
+            mkdir -p wheel_debug
+            cd wheel_debug
+            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib
+            \$PYTHON -c \"import talib; print('Successfully imported talib')\" || { echo \"Failed to import talib\"; exit 1; }
             
             # Repair wheel with auditwheel - use the module approach
             cd /work
@@ -248,9 +262,23 @@ jobs:
             # Install Python dependencies
             \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0' auditwheel
             
-            # Build wheel
+            # Verify TA-Lib C library installation
+            echo \"Verifying TA-Lib installation:\"
+            nm -D /usr/lib/libta_lib.so.0 | grep TA_AVGDEV_Lookback
+            
+            # Build wheel with explicit library paths
             cd ta-lib-python
-            TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib \$PYTHON -m build --wheel . -o /work/wheelhouse
+            export TA_INCLUDE_PATH=/usr/include
+            export TA_LIBRARY_PATH=/usr/lib
+            export LD_LIBRARY_PATH=/usr/lib:\$LD_LIBRARY_PATH
+            \$PYTHON -m build --wheel . -o /work/wheelhouse
+            
+            # Debug: Examine the built wheel
+            cd /work/wheelhouse
+            mkdir -p wheel_debug
+            cd wheel_debug
+            \$PYTHON -m pip install --force-reinstall --no-index --find-links=/work/wheelhouse/ ta-lib
+            \$PYTHON -c \"import talib; print('Successfully imported talib')\" || { echo \"Failed to import talib\"; exit 1; }
             
             # Repair wheel with auditwheel - use the module approach
             cd /work

@@ -85,6 +85,7 @@ jobs:
         echo "TA_INCLUDE_PATH=$(brew --prefix ta-lib)/include" >> $GITHUB_ENV
         cd ta-lib-python
         echo "Building wheel for TA-Lib $TA_LIB_PY_VERSION..."
+        python -m pip install build
         python -m build --wheel . -o ../dist
         if [ $? -ne 0 ]; then
           echo "::error::Failed to build wheel from cloned repository."

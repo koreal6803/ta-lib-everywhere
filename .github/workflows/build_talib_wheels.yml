@@ -91,15 +91,15 @@ jobs:
             PYTHON=\"/opt/python/cp\${PY_VERSION//./}*/bin/python\"
             
             # Install Python dependencies
-            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0'
+            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0' auditwheel
             
             # Build wheel
             cd ta-lib-python
             TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib \$PYTHON -m build --wheel . -o /work/wheelhouse
             
-            # Repair wheel with auditwheel
+            # Repair wheel with auditwheel - use the module approach
             cd /work
-            /opt/python/cp\${PY_VERSION//./}*/bin/auditwheel repair wheelhouse/*.whl --plat manylinux2014_x86_64 -w dist/
+            \$PYTHON -m auditwheel repair wheelhouse/*.whl --plat manylinux2014_x86_64 -w dist/
           "
 
     - name: Install TA-Lib C Library (macOS)
@@ -140,15 +140,15 @@ jobs:
             PYTHON=\"/opt/python/cp\${PY_VERSION//./}*/bin/python\"
             
             # Install Python dependencies
-            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0'
+            \$PYTHON -m pip install --upgrade pip setuptools wheel build 'numpy>=2.0' auditwheel
             
             # Build wheel
             cd ta-lib-python
             TA_INCLUDE_PATH=/usr/include TA_LIBRARY_PATH=/usr/lib \$PYTHON -m build --wheel . -o /work/wheelhouse
             
-            # Repair wheel with auditwheel
+            # Repair wheel with auditwheel - use the module approach
             cd /work
-            /opt/python/cp\${PY_VERSION//./}*/bin/auditwheel repair wheelhouse/*.whl --plat manylinux2014_aarch64 -w dist/
+            \$PYTHON -m auditwheel repair wheelhouse/*.whl --plat manylinux2014_aarch64 -w dist/
           "
 
     # The macOS build process doesn't need to change

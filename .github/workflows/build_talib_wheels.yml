@@ -44,6 +44,7 @@ jobs:
       run: |
         cp custom_setup.py ta-lib-python/setup.py
         cp custom_pyproject.toml ta-lib-python/pyproject.toml
+        cp custom_README.md ta-lib-python/README.md
         echo "Using custom setup.py and pyproject.toml"
 
     # Setup steps for ARM64 builds

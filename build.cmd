@@ -26,6 +26,8 @@ copy /Y custom_setup.py setup.py
 if errorlevel 1 exit /B 1
 copy /Y custom_pyproject.toml pyproject.toml
 if errorlevel 1 exit /B 1
+copy /Y custom_README.md README.md
+if errorlevel 1 exit /B 1
 
 :: git apply --verbose --binary talib.diff
 :: if errorlevel 1 exit /B 1

@@ -1,6 +1,6 @@
 # TA-Lib Everywhere
 
-This project provides pre-compiled TA-Lib (Technical Analysis Library) Python packages for various operating systems and Python versions. These wheel files allow you to install TA-Lib directly **without** compiling from source or having the TA-Lib C library pre-installed on your system.
+This project provides pre-compiled [TA-Lib](https://github.com/TA-Lib/ta-lib-python) (Technical Analysis Library) Python packages for various operating systems and Python versions. These wheel files allow you to install TA-Lib directly **without** compiling from source or having the TA-Lib C library pre-installed on your system.
 
 
 ## Acknowledgements

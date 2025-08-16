@@ -1,19 +1,22 @@
 # TA-Lib Everywhere
 
-**DEPRECATED — install `TA-Lib>=0.6.5` instead.**
+This project is now **inactive**.  It exists only as a thin shim that
+depends on the official [TA-Lib](https://pypi.org/project/TA-Lib/)
+Python package.
 
-This project is now a thin shim around the official
-[TA-Lib](https://github.com/TA-Lib/ta-lib-python) package.
-It ships no Python modules or binary wheels of its own and simply depends on the upstream distribution.
+Installing this package will simply install the upstream
+`TA-Lib` distribution:
 
-Unsupported environments such as Python versions earlier than 3.9 or musl-based systems like Alpine Linux do not currently receive official wheels. For those cases you may need to build TA-Lib from source or seek community-provided binaries.
+```bash
+pip install ta-lib-everywhere
+```
 
-## Acknowledgements
+For source code, documentation and issue tracking, please visit the
+official TA-Lib project:
 
-This project is based on these excellent open-source projects:
+- Source: <https://github.com/TA-Lib/ta-lib-python>
+- PyPI: <https://pypi.org/project/TA-Lib/>
 
-- [TA-Lib/ta-lib-python](https://github.com/TA-Lib/ta-lib-python) - Python wrapper for TA-Lib
-- [cgohlke/talib-build](https://github.com/cgohlke/talib-build) - TA-Lib build tools
 
 ## License
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ta-lib-everywhere"
-version = "0.6.6"
+version = "1.0.0"
 description = "Shim package that installs the official TA-Lib package."
 readme = "README.md"
 license = {text = "BSD-2-Clause"}

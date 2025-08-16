@@ -17,6 +17,7 @@ official TA-Lib project:
 - Source: <https://github.com/TA-Lib/ta-lib-python>
 - PyPI: <https://pypi.org/project/TA-Lib/>
 
+
 ## License
 
 This project follows the same BSD license as the original TA-Lib.

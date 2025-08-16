@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ta-lib-everywhere"
+version = "0.6.6"
+description = "Shim package that installs the official TA-Lib package."
+readme = "README.md"
+license = {text = "BSD-2-Clause"}
+requires-python = ">=3.9"
+dependencies = [
+    "TA-Lib>=0.6.5",
+]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://pypi.org/project/TA-Lib/"
+Repository = "https://github.com/TA-Lib/ta-lib-python"
+
